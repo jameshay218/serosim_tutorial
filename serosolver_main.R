@@ -170,7 +170,7 @@ titre_pred_p <- plot_infection_histories(chain = chain[chain$chain_no == 1,],
                          individuals = 1:25,
                          strain_isolation_times = strain_isolation_times,
                          nsamp = 100, # Needs to be smaller than length of sampled chain 
-                         par_tab = par_tab,p_ncol=5)
+                         par_tab = par_tab,p_ncol=5, data_type=2)
 
 
 ggsave(paste0(save_wd,"/",run_name,"_titre_fits.pdf"),titre_pred_p,height=7,width=8,units="in",dpi=300)
