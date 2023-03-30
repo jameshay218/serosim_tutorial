@@ -7,6 +7,7 @@
 ## Install and load serosim 
 ## devtools::install_github("AMenezes97/serosim")
 setwd("~/Documents/GitHub/serosim_tutorial/")
+source("extra_funcs.R")
 #library(serosim)
 devtools::load_all("~/Documents/GitHub/serosim")
 
@@ -16,6 +17,8 @@ library(data.table)
 library(ggplot2)
 library(patchwork)
 library(reshape2)
+
+set.seed(30032023)
 
 #####################################################################
 ## 1. Simulation settings
@@ -138,8 +141,7 @@ plot_antibody_model(antibody_model_monophasic, N=100, model_pars=model_pars %>% 
 ## 7. Observation model
 ## Specify the observation model 
 observation_model<-observation_model_continuous_bounded_noise
-observation_model<-observation_model_discrete_noise
-
+#observation_model<-observation_model_discrete_noise
 
 ## Specify assay sensitivity and specificity needed for the observation model
 model_pars_original[model_pars_original$name =="obs_sd","sd"] <- 0.5
@@ -151,22 +153,17 @@ observation_model_continuous_bounded_noise(example_biomarker_states, model_pars=
                                            sensitivity=sensitivity,specificity = specificity) %>% 
   pull(observed) %>% hist
 
-observation_model_discrete_noise(example_biomarker_states, model_pars=model_pars,cutoffs=matrix(seq(0,10,by=1),nrow=1),
-                                           sensitivity=sensitivity,specificity = specificity) %>% 
-  pull(observed) %>% as.numeric() %>% hist
+#observation_model_discrete_noise(example_biomarker_states, model_pars=model_pars,cutoffs=matrix(seq(0,10,by=1),nrow=1),
+#                                           sensitivity=sensitivity,specificity = specificity) %>% 
+#  pull(observed) %>% as.numeric() %>% hist
 
 
 ## Specify observation_times (serological survey sampling design) to observe
-## biomarker 1 across all individuals at time 100 and 120
+## biomarker 1 at two time points around t 80 and 110
 observation_times<- tibble(i=rep(1:max(demography$i),2),
                            t=floor(c(rnorm(N,80,3), rnorm(N,110,3))),
-                           b=1) %>% mutate(t = ifelse(t > 120, 120, t)) %>% arrange(i,t)
-
-#observation_times<- tibble(i=rep(1:max(demography$i),each=2),
-#                           t=rep(c(100,120),each=N),
-#                           b=1) %>% mutate(t = ifelse(t > 120, 120, t)) %>% arrange(i,t)
-
-
+                           b=1) %>% mutate(t = ifelse(t > max(times), max(times), t)) %>% 
+  arrange(i,t)
 #####################################################################
 
 #####################################################################
@@ -186,8 +183,8 @@ res<- runserosim(
   draw_parameters,
   
   ## Other arguments needed
-  ## bounds=bounds,
-  cutoffs=matrix(seq(0,10,by=1),nrow=1),
+  bounds=bounds,
+  #cutoffs=matrix(seq(0,10,by=1),nrow=1),
   max_events=max_events,
   vacc_exposures=vacc_exposures,
   vacc_age=vacc_age,
@@ -213,90 +210,15 @@ plot_biomarker_quantity(res$biomarker_states)
 ## Plot the serosurvey results (observed biomarker quantities)
 plot_obs_biomarkers_one_sample(res$observed_biomarker_states)
 
-demography_less <- demography %>% select(-times) %>% distinct()
-
-
 ## Save data for serosolver later
-write_csv(res$observed_biomarker_states %>% left_join(demography_less),file="data/simulated_serosurvey.csv")
+write_csv(res$observed_biomarker_states %>% left_join(demography %>% select(-times) %>% distinct()),file="data/simulated_serosurvey.csv")
 write_csv(res$exposure_histories_long,file="data/simulated_serosurvey_exp_histories.csv")
 
+output <- assess_seroconversion_threshold(threshold=2, observations=res$observed_biomarker_states, true_exposure_histories=res$exposure_histories_long, demography=demography)
+calculate_sens_spec(output[[2]])
+
+output[[1]]
+output[[2]]
 
 
-## See how accurate a simple seroconversion test would have been  
-seroconv_threshold <- 2
-
-## How many people seroconverted between t=100 and t=120?
-seroconverted_data <- res$observed_biomarker_states %>% 
-  pivot_wider(id_cols=c(i,b),names_from=t,values_from=observed) %>% 
-  mutate(change=`120`-`100`) %>%  ## Get change in titer
-  mutate(seroconv=change >= seroconv_threshold) %>% ## Binary seroconversion
-  left_join(demography_less) 
-
-## Get true exposure state
-true_seroconversions <- res$exposure_histories_long %>% 
-  filter(t >= 100, t<=120) %>% 
-  group_by(i) %>% 
-  summarize(true_exposures=sum(value,na.rm=TRUE))
-
-## Combine estimated and true exposure events
-seroconverted_data <- seroconverted_data %>% left_join(true_seroconversions)
-
-## Get number of individuals in the population during this time window, 
-## and number of individuals who were actually sampled
-demography_summary <- demography %>% 
-  filter(times <= removal) %>%
-  filter(times >= 100, times <= 120) %>%
-  select(-c(sex, times)) %>% distinct() %>% 
-  group_by(location) %>% tally() %>% rename(N_true=n)
-
-## Get number estimated to have seroconverted
-seroconverted_summary_obs <- seroconverted_data %>% 
-  group_by(location) %>% 
-  filter(!is.na(change)) %>%
-  dplyr::summarize(seroconv=sum(seroconv,na.rm=TRUE), 
-                   N=n()) %>%
-  mutate(category="Estimate")
-
-## Get number proportion exposed (call it seroconverted)
-seroconverted_summary_true <- seroconverted_data %>% 
-  group_by(location) %>% 
-  filter(!is.na(change)) %>%
-  dplyr::summarize(seroconv=sum(true_exposures >= 1, na.rm=TRUE)) %>%
-  left_join(demography_summary)%>%
-  rename(N=N_true) %>%
-  mutate(category="Truth")
-
-## Get proportions and binomial confidence intervals
-seroconverted_summary <- bind_rows(seroconverted_summary_obs,seroconverted_summary_true) %>%
-  rowwise() %>%
-  mutate(prop=seroconv/N, 
-         lower=prop.test(x=seroconv,n=N)$conf.int[1],
-         upper=prop.test(x=seroconv,n=N)$conf.int[2]) %>%
-  mutate(group=paste0(location, " (", category,")"))
-
-## Bar plot showing number sampled and number seroconverted
-ggplot(seroconverted_summary %>% 
-         select(location, group,seroconv,N) %>% 
-         pivot_longer(-c(location,group))) + 
-  geom_bar(aes(y=value,x=group,fill=name),stat="identity") +
-  ylab("Number seroconverted") +
-  xlab("Location") +
-  facet_wrap(~location,nrow=1, scales="free_x") 
-
-## Pointrange plot showing proportions and binomial confidence intervals
-ggplot(seroconverted_summary) + 
-  geom_pointrange(aes(y=prop,ymin=lower,ymax=upper,x=group,col=category),stat="identity") +
-  ylab("Proportion seroconverted") +
-  xlab("Location") +
-  facet_wrap(~location,nrow=1, scales="free_x") +
-  scale_y_continuous(limits=c(0,0.75))
-
-
-seroconverted_data %>% 
-  mutate(true_exposures = true_exposures > 0) %>%
-  mutate(categorization=ifelse(true_exposures==TRUE & seroconv==TRUE,"True positive",
-                               ifelse(true_exposures==TRUE & seroconv==FALSE,"False negative",
-                                      ifelse(true_exposures==FALSE & seroconv==TRUE,"False positive",
-                                             "True negative")))) %>%
-  group_by(categorization) %>% tally()
 #####################################################################

@@ -19,8 +19,8 @@ library(tidyverse)
 library(ggpubr)
 
 #devtools::install_github("seroanalytics/serosolver",ref="published")
-#library(serosolver)
-devtools::load_all("~/Documents/GitHub/serosolver")
+library(serosolver)
+#devtools::load_all("~/Documents/GitHub/serosolver")
 run_name <- "serosim_recovery"
 main_wd <- "~/Documents/GitHub/serosim_tutorial/"
 chain_wd <- paste0(main_wd,"/chains/",run_name)
@@ -83,7 +83,7 @@ antigenic_map <- data.frame(x_coord=0,y_coord=0,inf_times=strain_isolation_times
 
 f <- create_posterior_func(par_tab,sero_data,antigenic_map=antigenic_map,
                            version=prior_version,solve_likelihood=TRUE,n_alive=NULL,
-                           measurement_indices_by_time=NULL
+                           measurement_indices_by_time=NULL,data_type=2
                            )
 ## Time runs and use dopar to run multiple chains in parallel
 t1 <- Sys.time()
@@ -116,7 +116,7 @@ res <- foreach(x = filenames, .packages = c('data.table','plyr',"dplyr","serosol
                                 mcmc_pars=mcmc_pars,
                                 measurement_indices=NULL, ## NULL
                                 measurement_random_effects = FALSE, ## FALSE
-                                solve_likelihood=TRUE)
+                                solve_likelihood=TRUE,data_type=2)
 }
 }
 run_time_fast <- Sys.time() - t1
