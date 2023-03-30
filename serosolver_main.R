@@ -129,6 +129,11 @@ pdf(paste0(save_wd,"/",run_name,"_chain.pdf"))
 plot(as.mcmc.list(chains$theta_list_chains))
 dev.off()
 
+## Check Rhat statistic for antibody kinetics parameters
+list_chains <- chains$theta_list_chains
+list_chains <- lapply(list_chains, function(x) x[,(colnames(x) %in% c("mu_short","wane","error"))])
+gelman.diag(as.mcmc.list(list_chains))
+
 ## Read in chains for all other plots
 chains <- load_mcmc_chains(chain_wd,convert_mcmc=FALSE,burnin = mcmc_pars["adaptive_period"],unfixed = FALSE)
 chain <- as.data.frame(chains$theta_chain)
