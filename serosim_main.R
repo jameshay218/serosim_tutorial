@@ -8,8 +8,6 @@
 ## devtools::install_github("AMenezes97/serosim")
 setwd("~/Documents/GitHub/serosim_tutorial/")
 source("extra_funcs.R")
-#library(serosim)
-devtools::load_all("~/Documents/GitHub/serosim")
 
 ## Load additional packages required 
 library(tidyverse)
@@ -17,8 +15,9 @@ library(data.table)
 library(ggplot2)
 library(patchwork)
 library(reshape2)
+library(serosim)
 
-set.seed(30032023)
+set.seed(1234)
 
 #####################################################################
 ## 1. Simulation settings
@@ -154,8 +153,7 @@ observation_model_continuous_bounded_noise(example_biomarker_states, model_pars=
   pull(observed) %>% hist
 
 #observation_model_discrete_noise(example_biomarker_states, model_pars=model_pars,cutoffs=matrix(seq(0,10,by=1),nrow=1),
-#                                           sensitivity=sensitivity,specificity = specificity) %>% 
-#  pull(observed) %>% as.numeric() %>% hist
+# sensitivity=sensitivity,specificity = specificity) %>% pull(observed) %>% as.numeric() %>% hist
 
 
 ## Specify observation_times (serological survey sampling design) to observe
@@ -167,7 +165,7 @@ observation_times<- tibble(i=rep(1:max(demography$i),2),
 #####################################################################
 
 #####################################################################
-## 8. Full
+## 8. Full model
 ## Run the core simulation and save outputs in "res"
 res<- runserosim(
   simulation_settings,
@@ -219,6 +217,4 @@ calculate_sens_spec(output[[2]])
 
 output[[1]]
 output[[2]]
-
-
 #####################################################################

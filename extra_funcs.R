@@ -1,6 +1,7 @@
 assess_seroconversion_threshold <- function(threshold, observations, true_exposure_histories, demography){
   
   ## How many people seroconverted between t=100 and t=120?
+  demography_less <- demography %>% select(-times) %>% distinct()
   seroconverted_data <- res$observed_biomarker_states %>% 
     arrange(i, t) %>%
     group_by(i) %>% mutate(t_point=1:n()) %>%
@@ -103,4 +104,35 @@ calculate_sens_spec <- function(output){
   sens <- unname(TP/(TP + FN))
   spec <- unname(TN/(TN + FP))
   return(c("sensitivity"=sens,"specificity"=spec))
+}
+
+convert_inf_hist_to_serosolver <- function(true_inf_hist, time_blocks=10){
+true_inf_hist <- true_inf_hist %>% mutate(t_floor = floor(t/time_blocks) + 1)
+true_inf_hist <- true_inf_hist %>% mutate(value = ifelse(is.na(value), 0, value)) %>%
+  dplyr::select(-t) %>%
+  dplyr::rename(t=t_floor) %>%
+  group_by(i, t) %>% dplyr::summarize(x=sum(value)) %>% mutate(x = ifelse(x >=1, 1, x))
+true_inf_hist <- as.matrix(acast(true_inf_hist, formula=i ~ t))
+true_inf_hist
+}
+
+convert_serodata_to_serosolver <- function(sero_data, time_blocks=10){
+  colnames(sero_data) <- c("individual","samples","virus","true_titre","titre","DOB","removal","sex","location")
+  sero_data$run <- 1 ## Variable used if we have multiple observations per time
+  sero_data$group <- 1 ## Variable used if we want to stratify the population into distinct groups, but currently under development
+  sero_data <- sero_data %>% select(individual,samples,virus,titre,DOB,run,group)
+  sero_data$samples <- floor(sero_data$samples/time_blocks) + 1
+  sero_data$DOB <- floor(sero_data$DOB/time_blocks) + 1
+  sero_data
+}
+
+expand_sero_data <- function(sero_data){
+  
+  sero_data_tmp <- expand_grid(individual=unique(sero_data$individual),
+                               samples=strain_isolation_times,virus=1,group=1,run=1)
+  sero_data_tmp <- sero_data_tmp %>% 
+    left_join(sero_data %>% select(individual, DOB) %>% distinct()) %>% 
+    left_join(sero_data %>% select(individual, samples,titre) %>% distinct()) %>% 
+    filter(samples >= DOB)
+  sero_data_tmp
 }
