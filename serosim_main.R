@@ -1,12 +1,12 @@
 #######################
-## serosim tutorial -- Imperial 31/03/2023
+## serosim tutorial -- Pasteur 31/01/2024
 ## Author: James Hay
-## Last updated: 29/03/2023
+## Last updated: 29/01/2024
 #######################
 
 ## Install and load serosim 
-## devtools::install_github("AMenezes97/serosim")
-setwd("~/Documents/GitHub/serosim_tutorial/")
+## devtools::install_github("seroanalytics/serosim")
+library(serosim)
 source("extra_funcs.R")
 
 ## Load additional packages required 
@@ -195,12 +195,12 @@ res<- runserosim(
 
 #####################################################################
 ## 9. Some post processing and plots
-## Plot biomarker kinetics and exposure histories for 10 individuals 
-plot_subset_individuals_history(res$biomarker_states, res$exposure_histories_long, 
+## Plot biomarker kinetics and immune histories for 10 individuals 
+plot_subset_individuals_history(res$biomarker_states, res$immune_histories_long, 
                                 subset=10, demography)
 
-## Plot individual exposure histories for all exposure types
-plot_exposure_histories(res$exposure_histories_long)
+## Plot individual immune histories for all exposure types
+plot_immune_histories(res$immune_histories_long)
 
 ## Plot true biomarker quantities for all individuals across the entire simulation period
 plot_biomarker_quantity(res$biomarker_states)
@@ -210,9 +210,9 @@ plot_obs_biomarkers_one_sample(res$observed_biomarker_states)
 
 ## Save data for serosolver later
 write_csv(res$observed_biomarker_states %>% left_join(demography %>% select(-times) %>% distinct()),file="data/simulated_serosurvey.csv")
-write_csv(res$exposure_histories_long,file="data/simulated_serosurvey_exp_histories.csv")
+write_csv(res$immune_histories_long,file="data/simulated_serosurvey_exp_histories.csv")
 
-output <- assess_seroconversion_threshold(threshold=2, observations=res$observed_biomarker_states, true_exposure_histories=res$exposure_histories_long, demography=demography)
+output <- assess_seroconversion_threshold(threshold=0.5, observations=res$observed_biomarker_states, true_immune_histories=res$immune_histories_long, demography=demography)
 calculate_sens_spec(output[[2]])
 
 output[[1]]

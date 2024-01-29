@@ -1,4 +1,4 @@
-assess_seroconversion_threshold <- function(threshold, observations, true_exposure_histories, demography){
+assess_seroconversion_threshold <- function(threshold, observations, true_immune_histories, demography){
   
   ## How many people seroconverted between t=100 and t=120?
   demography_less <- demography %>% select(-times) %>% distinct()
@@ -17,7 +17,7 @@ assess_seroconversion_threshold <- function(threshold, observations, true_exposu
     mutate(t_point=paste0("t",t_point)) %>% 
     pivot_wider(id_cols=i, values_from=t, names_from=t_point)
   
-  true_seroconversions <- res$exposure_histories_long %>% 
+  true_seroconversions <- res$immune_histories_long %>% 
     left_join(observation_times_wide) %>%
     filter(t >= t1, t<=t2) %>% 
     group_by(i) %>% 
@@ -106,23 +106,26 @@ calculate_sens_spec <- function(output){
   return(c("sensitivity"=sens,"specificity"=spec))
 }
 
-convert_inf_hist_to_serosolver <- function(true_inf_hist, time_blocks=10){
+convert_inf_hist_to_serosolver <- function(true_inf_hist, sero_data=NULL, time_blocks=10){
 true_inf_hist <- true_inf_hist %>% mutate(t_floor = floor(t/time_blocks) + 1)
 true_inf_hist <- true_inf_hist %>% mutate(value = ifelse(is.na(value), 0, value)) %>%
   dplyr::select(-t) %>%
   dplyr::rename(t=t_floor) %>%
   group_by(i, t) %>% dplyr::summarize(x=sum(value)) %>% mutate(x = ifelse(x >=1, 1, x))
 true_inf_hist <- as.matrix(acast(true_inf_hist, formula=i ~ t))
+if(!is.null(sero_data)) true_inf_hist <- true_inf_hist[unique(sero_data$individual_old),]
 true_inf_hist
 }
 
 convert_serodata_to_serosolver <- function(sero_data, time_blocks=10){
-  colnames(sero_data) <- c("individual","samples","virus","true_titre","titre","DOB","removal","sex","location")
-  sero_data$run <- 1 ## Variable used if we have multiple observations per time
-  sero_data$group <- 1 ## Variable used if we want to stratify the population into distinct groups, but currently under development
-  sero_data <- sero_data %>% select(individual,samples,virus,titre,DOB,run,group)
-  sero_data$samples <- floor(sero_data$samples/time_blocks) + 1
-  sero_data$DOB <- floor(sero_data$DOB/time_blocks) + 1
+  colnames(sero_data) <- c("individual","sample_time","biomarker_id","true_titre","measurement","birth","removal","sex","location")
+  sero_data$repeat_number <- 1 ## Variable used if we have multiple observations per time
+  sero_data$population_group <- 1 ## Variable used if we want to stratify the population into distinct groups, but currently under development
+  sero_data <- sero_data %>% select(individual,sample_time,biomarker_id,measurement,birth,repeat_number,population_group)
+  sero_data$sample_time <- floor(sero_data$sample_time/time_blocks) + 1
+  sero_data$birth <- floor(sero_data$birth/time_blocks) + 1
+  sero_data$individual_old <- sero_data$individual
+  sero_data$individual <- match(sero_data$individual, unique(sero_data$individual))
   sero_data
 }
 
